@@ -144,11 +144,16 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
   const filteredLeads = filteredAndSortedLeads;
 
   const handleExportGoogleSheets = async () => {
+    // 10. Confirm export uses active/current campaign data
     const exportData = selectedLeads.length > 0 
       ? leads.filter(l => selectedLeads.includes(l.id))
       : filteredLeads;
 
-    if (exportData.length === 0) return;
+    // 8. Verify leads array is not empty
+    if (!exportData || exportData.length === 0) {
+      alert("No leads available to export.");
+      return;
+    }
 
     const webhookUrl = await getWebhookUrl();
     if (!webhookUrl) {
@@ -158,14 +163,6 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
 
     setExportStatus('exporting');
     setExportUrl('');
-
-    const formatDate = (isoString) => {
-      if (!isoString) return '';
-      const d = new Date(isoString);
-      if (isNaN(d.getTime())) return '';
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
 
     const cleanString = (val) => {
       if (val === null || val === undefined) return '';
@@ -183,6 +180,9 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
           locationName = searchDoc.location || "Location";
         }
       }
+      
+      // 9. Verify campaignName is included
+      console.log("Exporting campaignName:", campaignName, "locationName:", locationName);
 
       const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '_');
       const safeCampaignName = cleanString(campaignName).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -207,49 +207,49 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
       const payload = {
         sheetName: sheetName,
         headers: headers,
-        rows: rows
+        rows: rows,
+        campaignName: campaignName // ensure we send it if useful
       };
 
+      // 3. Log the exact payload before sending
+      console.log("Google Sheets Webhook Payload:", JSON.stringify(payload, null, 2));
+
       const cleanUrl = webhookUrl.trim();
-      let result;
       
+      // 2. Send the request
+      const response = await fetch(cleanUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      // 4. Log response status and raw response text
+      console.log("Webhook Response Status:", response.status, response.statusText);
+      const rawResponseText = await response.text();
+      console.log("Webhook Raw Response:", rawResponseText);
+
+      // 5. Do not assume response.json() succeeds unless verified
+      let result;
       try {
-        // Attempt standard fetch to get the JSON response with the sheet URL
-        const response = await fetch(cleanUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify(payload)
-        });
-        result = await response.json();
-      } catch (fetchError) {
-        console.warn("Standard fetch failed (likely CORS or whitespace). Attempting no-cors fallback...", fetchError);
-        
-        // Fallback: Use no-cors mode. We won't be able to read the response to get the URL,
-        // but the data will still be successfully inserted into Google Sheets.
-        await fetch(cleanUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify(payload)
-        });
-        
-        // Mock a success response since no-cors gives us an opaque response
-        result = { status: 'success', url: '' };
+        result = JSON.parse(rawResponseText);
+      } catch (parseError) {
+        console.error("Failed to parse JSON response:", parseError);
+        throw new Error(`Invalid JSON response from webhook. Status: ${response.status}. Raw: ${rawResponseText.substring(0, 150)}...`);
       }
 
       if (result.status === 'success') {
         setExportStatus('success');
-        setExportUrl(result.url); // Might be empty in fallback mode, which is fine
+        setExportUrl(result.url || '');
       } else {
-        throw new Error(result.message || 'Export failed');
+        throw new Error(result.message || 'Export failed according to webhook response payload.');
       }
+      
     } catch (error) {
       console.error("Export error:", error);
-      alert("Export Error: " + error.message + "\n\nMake sure your Webhook URL is correct and deployed with Access: Anyone.");
+      // 6. Surface the real error in the UI
+      alert(`Export Error:\n\n${error.message}`);
       setExportStatus('error');
       setTimeout(() => setExportStatus('idle'), 5000);
     }
