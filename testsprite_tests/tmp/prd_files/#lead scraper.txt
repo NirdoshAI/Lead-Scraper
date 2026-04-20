@@ -1,0 +1,40 @@
+# LeadScrape App Testing Spec
+
+## Overview
+LeadScrape is a web app that generates business leads using Google Maps scraping and allows filtering, scoring, and exporting.
+
+## Features to Test
+
+### 1. Lead Generation
+- Input: category + location
+- Generates leads using API
+- Displays results
+
+### 2. Filtering
+- Status filter
+- Category filter
+- Website filter
+
+### 3. Campaign Isolation
+- Each search should show only its own results
+
+### 4. Export
+- Export leads to Google Sheets via webhook
+
+### 5. Dashboard
+- Shows campaigns
+- View All should navigate to leads page
+
+### 6. Mobile
+- Navigation drawer should work
+- No dead-end pages
+
+## Test Data
+- dentist / miami
+- real estate / houston
+
+## Expected Behavior
+- No mixed categories
+- Filters work correctly
+- Export works
+- UI responsive
