@@ -192,7 +192,7 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
       // Clean up multiple underscores
       sheetName = sheetName.replace(/_+/g, '_').replace(/^_|_$/g, '');
 
-      const headers = ['Business Name', 'Category', 'City', 'State', 'Phone', 'Website', 'Email'];
+      const headers = ['Business Name', 'Category', 'City', 'State', 'Phone', 'Website', 'Email', 'Rating', 'Reviews', 'Status', 'Lead Score', 'Date Added'];
       
       const rows = exportData.map(l => [
         cleanString(l.title),
@@ -201,7 +201,12 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
         cleanString(l.state),
         cleanString(l.phone),
         cleanString(l.website),
-        cleanString(l.email)
+        cleanString(l.email),
+        cleanString(l.stars || 0),
+        cleanString(l.reviewsCount || 0),
+        cleanString(l.status || 'New'),
+        cleanString(l.leadScore || 0),
+        cleanString(new Date(l.timestamp || Date.now()).toLocaleDateString())
       ]);
 
       const payload = {
