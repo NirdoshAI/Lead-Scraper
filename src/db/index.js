@@ -141,7 +141,7 @@ export const saveApiKey = async (apiKey) => {
 
 export const getApiKey = async () => {
   const setting = await db.settings.get('apify_token');
-  return setting ? setting.value : null;
+  return setting?.value || import.meta.env?.VITE_APIFY_TOKEN || null;
 };
 
 export const getWebhookUrl = async () => {

@@ -15,8 +15,9 @@ export const useApify = () => {
     setProgress('Starting scraper...');
 
     try {
-      const apiKey = await getApiKey();
-      if (!apiKey) throw new Error('API Key not found. Please set it in Settings.');
+      const rawKey = await getApiKey();
+      const apiKey = rawKey ? rawKey.trim() : null;
+      if (!apiKey) throw new Error('API Key not found or empty. Please set a valid Apify token in Settings.');
 
       // 1. Start the Actor Run
       const input = {
@@ -109,31 +110,10 @@ export const useApify = () => {
 
     } catch (err) {
       console.error('[Apify] Pipeline Error:', err);
-      
-      // MOCK DATA FALLBACK
-      setProgress('API Error detected. Using mock data for demo...');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const searchId = await saveSearch({
-        query: searchQuery,
-        location: location,
-        status: 'SUCCEEDED',
-        resultCount: 0
-      });
-      
-      const mockItems = [
-        { title: `Demo ${searchQuery} 1`, category: searchQuery, city: location, state: 'TX', phone: '(555) 123-0001', website: 'https://example1.com', emails: [{ email: 'contact@example1.com' }], stars: 4.5, reviewsCount: 120 },
-        { title: `Demo ${searchQuery} 2`, category: searchQuery, city: location, state: 'TX', phone: '(555) 123-0002', website: '', stars: 4.2, reviewsCount: 85 },
-        { title: `Demo ${searchQuery} 3`, category: searchQuery, city: location, state: 'TX', phone: '(555) 123-0003', website: 'https://example3.com', stars: 4.8, reviewsCount: 300 },
-        { title: `Demo ${searchQuery} 4`, category: searchQuery, city: location, state: 'TX', phone: '(555) 123-0004', website: 'https://example4.com', emails: [{ email: 'hello@example4.com' }], stars: 3.9, reviewsCount: 45 },
-        { title: `Demo ${searchQuery} 5`, category: searchQuery, city: location, state: 'TX', phone: '(555) 123-0005', website: 'https://example5.com', stars: 5.0, reviewsCount: 12 },
-      ];
-      
-      const savedCount = await saveLeads(mockItems, searchId, searchQuery);
-      await updateSearch(searchId, { resultCount: savedCount });
-      
+      setError(err.message || 'An error occurred during lead generation.');
       setIsLoading(false);
-      return { success: true, count: savedCount, searchId, message: 'Used mock data due to API error.' };
+      setProgress(null);
+      return { success: false, message: err.message || 'Unknown error' };
     }
   }, []);
 

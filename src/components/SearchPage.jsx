@@ -28,9 +28,7 @@ const SearchPage = ({ onComplete }) => {
         setStatusMsg({ type: 'warning', text: result.message || 'No leads were found for this search.' });
       }
     } else if (result?.success === false) {
-      // Error is already handled by useApify and exposed via 'error'
-      // but we can set a specific status message too
-      setStatusMsg({ type: 'error', text: result.error || 'Failed to generate leads. Please check your API key and search parameters.' });
+      setStatusMsg({ type: 'error', text: result.message || 'Failed to generate leads. Please check your API key and search parameters.' });
     }
   };
 
