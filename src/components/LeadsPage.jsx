@@ -213,7 +213,10 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
         sheetName: sheetName,
         headers: headers,
         rows: rows,
-        campaignName: campaignName // ensure we send it if useful
+        data: rows,
+        leads: rows,
+        items: rows,
+        campaignName: campaignName
       };
 
       // 3. Log the exact payload before sending
