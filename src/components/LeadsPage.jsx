@@ -239,11 +239,11 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
         throw new Error(`Invalid JSON response from webhook. Status: ${response.status}. Raw: ${rawResponseText.substring(0, 150)}...`);
       }
 
-      if (result.status === 'success') {
+      if (result.status === 'success' || result.result === 'success') {
         setExportStatus('success');
         setExportUrl(result.url || '');
       } else {
-        throw new Error(result.message || 'Export failed according to webhook response payload.');
+        throw new Error(result.message || `Export failed. Webhook returned: ${JSON.stringify(result)}`);
       }
       
     } catch (error) {
