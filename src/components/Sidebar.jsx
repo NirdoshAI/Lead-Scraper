@@ -96,6 +96,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, onClose }) => {
           <LogOut size={20} />
           <span style={{ fontSize: '14px' }}>Sign Out</span>
         </button>
+        <div style={{ marginTop: '16px', fontSize: '10px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
+          Lead Scraper v1.0.8
+        </div>
+      </div>
       </div>
     </aside>
   );

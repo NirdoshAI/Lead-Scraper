@@ -231,6 +231,11 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
 
       console.log(`[Export] Data rows to send: ${rows.length}`);
       console.log(`[Export] Webhook URL: ${cleanUrl}`);
+      
+      // Alert user of the data being sent to verify it's not empty
+      if (!confirm(`Exporting ${rows.length} leads to Google Sheets. Continue?`)) {
+        return;
+      }
 
       let response;
       const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
