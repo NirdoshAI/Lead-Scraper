@@ -40,76 +40,74 @@ export const useApify = () => {
       const runData = await runResponse.json();
       const runId = runData.data.id;
       const datasetId = runData.data.defaultDatasetId;
-      console.log('Scraper run started. Run ID:', runId);
+      console.log(`[Apify] Scraper run started. Run ID: ${runId}, Dataset ID: ${datasetId}`);
 
       // 2. Poll for status
       let status = runData.data.status;
       while (status === 'READY' || status === 'RUNNING') {
-        setProgress('Scraping in progress...');
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Increased interval
+        setProgress(`Scraping in progress... (Status: ${status})`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
         const statusResponse = await fetch(`${APIFY_BASE_URL}/acts/${ACTOR_ID}/runs/${runId}?token=${apiKey}`);
-        console.log('Polling status. Response status:', statusResponse.status);
         
         if (!statusResponse.ok) {
           const errorData = await statusResponse.json().catch(() => ({}));
-          console.error('Status check failed:', errorData);
+          console.error('[Apify] Status check failed:', errorData);
           throw new Error(errorData.error?.message || `Failed to check run status (HTTP ${statusResponse.status}).`);
         }
         
         const statusData = await statusResponse.json();
         status = statusData.data.status;
-        console.log('Current run status:', status);
+        console.log(`[Apify] Polling status: ${status}`);
         
         if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
-          throw new Error(`Scraper run ${status.toLowerCase()}.`);
+          throw new Error(`Scraper run ${status.toLowerCase()}. Check your Apify console for details.`);
         }
       }
 
       // 3. Fetch Results
-      setProgress('Fetching results...');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Sync delay
+      setProgress('Scrape finished. Fetching results...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('Fetching dataset items. Dataset ID:', datasetId);
+      console.log(`[Apify] Fetching dataset items from ${datasetId}...`);
       const resultsResponse = await fetch(`${APIFY_BASE_URL}/datasets/${datasetId}/items?token=${apiKey}`);
-      console.log('Dataset fetch status:', resultsResponse.status);
-
+      
       if (!resultsResponse.ok) {
         const errorData = await resultsResponse.json().catch(() => ({}));
-        console.error('Dataset fetch failed:', errorData);
-        throw new Error(errorData.error?.message || `Failed to fetch results from dataset (HTTP ${resultsResponse.status}).`);
+        console.error('[Apify] Dataset fetch failed:', errorData);
+        throw new Error(errorData.error?.message || `Failed to fetch results (HTTP ${resultsResponse.status}).`);
       }
       
       const items = await resultsResponse.json();
-      console.log(`[Apify] Successfully fetched ${items.length} items from dataset.`);
-
-      if (items.length === 0) {
-        console.warn('[Apify] Dataset fetch returned 0 items.');
-        setIsLoading(false);
-        return { success: true, count: 0, message: 'No leads found for this search.' };
-      }
+      console.log(`[Apify] Raw results fetched: ${items.length} items.`);
 
       // 4. Save to DB
-      setProgress('Saving to database...');
+      setProgress('Saving leads to database...');
       const searchId = await saveSearch({
         query: searchQuery,
         location: location,
-        status: 'SUCCEEDED',
-        resultCount: items.length // Will update later
+        status: items.length === 0 ? 'NO_RESULTS' : 'SUCCEEDED',
+        resultCount: items.length
       });
 
+      if (items.length === 0) {
+        console.warn('[Apify] No items found in the dataset.');
+        setIsLoading(false);
+        return { success: true, count: 0, message: 'No leads found for this search.', searchId };
+      }
+
       const savedCount = await saveLeads(items, searchId, searchQuery);
-      console.log(`[Apify] Successfully saved ${savedCount} leads to DB.`);
+      console.log(`[Apify] Save complete. ${savedCount} leads actually saved after filtering.`);
       
       // Update search with the accurate filtered count
       await updateSearch(searchId, { resultCount: savedCount });
       
-      setProgress('Complete!');
+      setProgress('Campaign complete!');
       setIsLoading(false);
       return { success: true, count: savedCount, searchId };
 
     } catch (err) {
-      console.error('[Apify] Pipeline Error:', err);
+      console.error('[Apify] CRITICAL PIPELINE ERROR:', err);
       setError(err.message || 'An error occurred during lead generation.');
       setIsLoading(false);
       setProgress(null);

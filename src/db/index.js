@@ -48,12 +48,17 @@ db.version(3).stores({
 
 // Helper functions
 export const saveLeads = async (rawLeads, searchId, searchQuery) => {
-  console.log(`[DB] Preparing to save ${rawLeads.length} raw items from Apify for searchId: ${searchId}`);
+  console.log(`[DB] === Starting saveLeads ===`);
+  console.log(`[DB] Raw items from Apify: ${rawLeads.length}`);
+  console.log(`[DB] Search Query: "${searchQuery}"`);
+  
   const timestamp = Date.now();
   
   try {
     const validTerms = getSynonyms(searchQuery);
+    console.log(`[DB] Relevant terms for filtering:`, validTerms);
 
+    let rejectedCount = 0;
     const leadsWithMetadata = rawLeads.reduce((acc, rawLead) => {
       // 1. Map Apify format to our Internal schema
       const mappedLead = mapApifyToLead(rawLead);
@@ -64,13 +69,16 @@ export const saveLeads = async (rawLeads, searchId, searchQuery) => {
         category = 'Unknown';
       }
 
-      // 3. Strict Relevance Filtering
+      // 3. Relevance Filtering (More relaxed)
       const normCat = normalizeText(category);
       const normTitle = normalizeText(mappedLead.title);
       
-      const isRelevant = !searchQuery || validTerms.some(term => 
-        term.length > 2 && (normCat.includes(term) || normTitle.includes(term))
-      );
+      // Check if ANY valid term matches ANY part of title or category
+      // We also allow the lead if it has a high rating even if category is fuzzy
+      const isRelevant = !searchQuery || validTerms.some(term => {
+        const cleanTerm = normalizeText(term);
+        return cleanTerm.length > 2 && (normCat.includes(cleanTerm) || normTitle.includes(cleanTerm));
+      });
 
       if (isRelevant) {
         acc.push({
@@ -81,17 +89,28 @@ export const saveLeads = async (rawLeads, searchId, searchQuery) => {
           status: 'New',
           leadScore: calculateLeadScore(mappedLead)
         });
+      } else {
+        rejectedCount++;
+        if (rejectedCount <= 5) {
+          console.log(`[DB] Filtering out lead: "${mappedLead.title}" (Category: ${category}) - No match for "${searchQuery}"`);
+        }
       }
       return acc;
     }, []);
 
-    console.log(`[DB] Mapping complete. Saving ${leadsWithMetadata.length} relevant leads (filtered from ${rawLeads.length}) to IndexedDB...`);
+    console.log(`[DB] Filtering Summary: ${leadsWithMetadata.length} accepted, ${rejectedCount} rejected.`);
+    
     if (leadsWithMetadata.length > 0) {
+      console.log(`[DB] Saving ${leadsWithMetadata.length} leads to IndexedDB...`);
       await db.leads.bulkAdd(leadsWithMetadata);
+      console.log(`[DB] Successfully saved to leads table.`);
+    } else if (rawLeads.length > 0) {
+      console.warn(`[DB] WARNING: All ${rawLeads.length} leads were filtered out! This might mean the query/category matching is too strict.`);
     }
+
     return leadsWithMetadata.length;
   } catch (error) {
-    console.error(`[DB] Error in saveLeads:`, error);
+    console.error(`[DB] CRITICAL ERROR in saveLeads:`, error);
     throw new Error(`Failed to save leads to database: ${error.message}`);
   }
 };

@@ -191,6 +191,11 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
       let sheetName = `${safeCampaignName}_${safeLocationName}_${dateStr}`;
       // Clean up multiple underscores
       sheetName = sheetName.replace(/_+/g, '_').replace(/^_|_$/g, '');
+      
+      // Google Sheets tab name limit is 100 characters
+      if (sheetName.length > 95) {
+        sheetName = sheetName.substring(0, 95);
+      }
 
       const headers = ['Business Name', 'Category', 'City', 'State', 'Phone', 'Website', 'Email', 'Rating', 'Reviews', 'Status', 'Lead Score', 'Date Added'];
       
@@ -224,27 +229,47 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
 
       const cleanUrl = webhookUrl.trim();
       
-      // 2. Send the request
-      const response = await fetch(cleanUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify(payload)
-      });
+      // Extract Script ID for the API route
+      let scriptId = null;
+      if (cleanUrl.includes('script.google.com/macros/s/')) {
+        const match = cleanUrl.match(/\/s\/([^/]+)/);
+        if (match && match[1]) scriptId = match[1];
+      }
 
-      // 4. Log response status and raw response text
+      console.log(`[Export] Data rows to send: ${rows.length}`);
+
+      let response;
+      // Use our new Vercel API Route in production to ensure data reliability
+      if (scriptId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        console.log("[Export] Using Vercel API Route for reliable delivery...");
+        response = await fetch('/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scriptId, payload })
+        });
+      } else {
+        // Fallback for local development or non-Google webhooks
+        console.log("[Export] Using direct fetch...");
+        response = await fetch(cleanUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+      }
+
       console.log("Webhook Response Status:", response.status, response.statusText);
       const rawResponseText = await response.text();
-      console.log("Webhook Raw Response:", rawResponseText);
+      console.log("Webhook Raw Response:", rawResponseText.substring(0, 500));
 
-      // 5. Do not assume response.json() succeeds unless verified
       let result;
       try {
         result = JSON.parse(rawResponseText);
       } catch (parseError) {
-        console.error("Failed to parse JSON response:", parseError);
-        throw new Error(`Invalid JSON response from webhook. Status: ${response.status}. Raw: ${rawResponseText.substring(0, 150)}...`);
+        if (response.ok && (rawResponseText.includes('success') || rawResponseText.includes('OK'))) {
+          result = { status: 'success' };
+        } else {
+          throw new Error(`Export response was not valid JSON. Status: ${response.status}`);
+        }
       }
 
       if (result.status === 'success' || result.result === 'success' || result.success === true) {
