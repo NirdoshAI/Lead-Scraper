@@ -228,28 +228,24 @@ const LeadsPage = ({ currentSearchId, onClearSearch }) => {
       console.log("Google Sheets Webhook Payload:", JSON.stringify(payload, null, 2));
 
       const cleanUrl = webhookUrl.trim();
-      
-      // Extract Script ID for the API route
-      let scriptId = null;
-      if (cleanUrl.includes('script.google.com/macros/s/')) {
-        const match = cleanUrl.match(/\/s\/([^/]+)/);
-        if (match && match[1]) scriptId = match[1];
-      }
 
       console.log(`[Export] Data rows to send: ${rows.length}`);
+      console.log(`[Export] Webhook URL: ${cleanUrl}`);
 
       let response;
-      // Use our new Vercel API Route in production to ensure data reliability
-      if (scriptId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      if (!isLocal) {
+        // PRODUCTION: Use Vercel serverless function to bypass CORS/redirect issues
         console.log("[Export] Using Vercel API Route for reliable delivery...");
         response = await fetch('/api/export', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scriptId, payload })
+          body: JSON.stringify({ webhookUrl: cleanUrl, payload })
         });
       } else {
-        // Fallback for local development or non-Google webhooks
-        console.log("[Export] Using direct fetch...");
+        // LOCAL DEV: Direct fetch works fine on localhost
+        console.log("[Export] Using direct fetch (localhost)...");
         response = await fetch(cleanUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
